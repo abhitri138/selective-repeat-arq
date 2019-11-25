@@ -5,11 +5,11 @@ import time
 
 
 class Segment:
-    # def __init__(self, seq_num, mss):
-    #     self.seq_num = seq_num
-    #     self.checksum = int(bytes[32:32+16])
-    #     self.typeobj = int(bytes[32+16:32+16+16])
-    #     self.data = bytes[32+16+16:mss].decode()
+    def create(self, seq_num, mss):
+        self.seq_num = seq_num
+        self.checksum = int(bytes[32:32+16])
+        self.typeobj = int(bytes[32+16:32+16+16])
+        self.data = bytes[32+16+16:mss].decode()
 
     def get(self, seq_num, data):
         seg = "{0:032b}".format(seq_num)
@@ -65,8 +65,9 @@ class SftpClient:
                 last_ack_recv = -1
                 while 1:
                     ack = self.server_sock.recvfrom(64)  # check buffersize
-                    ack_dg = Segment(ack, self.MSS)
+                    ack_dg = Segment().create(ack, self.MSS)
                     last_ack_recv = ack_dg.seq_num % self.window_size
+                    print("Recieved ACK for seq: ", ack_dg.seq_num)
                     for i in range(last_ack_recv + 1):
                         counters = -1
             except:

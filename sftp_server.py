@@ -23,6 +23,7 @@ class SftpServer:
         self.port = int(port)
         self.file = open(file_name, "a")
         self.loss_prob = float(loss_prob)
+        self.seq_num = 0
         if policy == 'selective_repeat':
             self.policy = self.selective_repeat
         else:
@@ -39,16 +40,15 @@ class SftpServer:
             self.server_sock.close()
 
     def go_back_n(self):
-        seq_num = 0
         seg, client = self.server_sock.recvfrom(1100)  # TO Do: check the buffer size
         checksum = 100
         dg = Segment(seg)
         if checksum == dg.checksum:
             rand_num = random.random()
-            if seq_num == dg.seq_num and rand_num > self.loss_prob:
-                seq_num += 1
+            if self.seq_num == dg.seq_num and rand_num > self.loss_prob:
+                self.seq_num += 1
                 self.file.write(dg.data)
-                self.server_sock.sendto(Segment(seg).get_ack(seq_num), client)
+                self.server_sock.sendto(Segment(seg).get_ack(self.seq_num), client)
             else:
                 print("Packet loss, sequence number = ", dg.seq_num)
         else:
