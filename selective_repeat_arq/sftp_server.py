@@ -1,3 +1,4 @@
+import queue
 import random
 import socket
 import sys
@@ -38,7 +39,7 @@ class SftpServer:
         self.server_sock.settimeout(20)
         self.port = int(port)
         self.file_name = file_name
-
+        self.buffer = queue.Queue()
         self.loss_prob = float(loss_prob)
         self.seq_num = 0
         if policy == 'selective_repeat':
@@ -67,6 +68,13 @@ class SftpServer:
                     self.seq_num += 1
                     file = open(file_name, "a")
                     file.write(dg.data)
+                    while self.buffer.qsize() > 0:
+                        prev_dg = self.buffer.get()
+                        if self.seq_num == dg.seq_num:
+                            file.write(prev_dg.data)
+                            self.seq_num += 1
+                        else:
+                            break
                     file.close()
                     try:
                         self.server_sock.sendto(Segment(seg).get_ack(self.seq_num), client)
@@ -75,6 +83,14 @@ class SftpServer:
                 else:
                     if self.seq_num == dg.seq_num:
                         print("Packet loss, sequence number = ", dg.seq_num)
+                    else:
+                        self.buffer.put(dg)
+                        try:
+                            self.server_sock.sendto(Segment(seg).get_ack(self.seq_num), client)
+                        except:
+                            self.seq_num = 0
+
+
             else:
                 print("Packet loss due to checksum issue, sequence number = ", dg.seq_num)
         except Exception as e:

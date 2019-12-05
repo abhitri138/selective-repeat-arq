@@ -1,3 +1,4 @@
+import queue
 import socket
 import sys
 import time
@@ -51,6 +52,8 @@ class SftpClient:
         self.lock = threading.Lock()
         self.last_ack_recv = -1
         self.TOTAL_PACKETS = math.ceil(len(self.data)/ self.data_size)
+        self.dict = {}
+        self.resend = {}
         if policy == 'selective_repeat':
             self.policy = self.selective_repeat
         else:
@@ -58,7 +61,7 @@ class SftpClient:
         
     def start(self):
         # try:
-        ack_thread = threading.Thread(target=self.gobackn_recieve_ack)
+        ack_thread = threading.Thread(target=self.selective_arq)
         t = time.time()
         ack_thread.start()
 
@@ -79,11 +82,17 @@ class SftpClient:
                 dg = Segment().get(self.seq_num, data)
                 self.server_sock.sendto(dg, self.server_address)
                 self.lock.acquire()
+                self.dict[self.seq_num] = dg
                 self.seq_num += 1
                 self.window_free -= 1
                 self.lock.release()
 
-    def gobackn_recieve_ack(self):
+            for key in self.resend.keys():
+                data = self.resend[key]
+                dg = Segment().get(key, data)
+                self.server_sock.sendto(dg, self.server_address)
+
+    def selective_arq(self):
         while self.last_ack_recv < self.TOTAL_PACKETS:
             try:
 
@@ -96,6 +105,8 @@ class SftpClient:
                     if self.window_free > self.window_size:
                         self.window_free = self.window_size
                     self.lock.release()
+                else:
+                    self.resend[ack_dg.seq_num] = self.dict[ack_dg.seq_num]
 
             except Exception as e:
                 if e.args[0] != 'timed out':
